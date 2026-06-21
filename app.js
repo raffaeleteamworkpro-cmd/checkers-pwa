@@ -195,7 +195,7 @@ async function animateStep(from, to, captured = null) {
   boardEl.dispatchEvent(new CustomEvent('dama:animationstart', { detail: { from, to, captured } }));
 
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const duration = reducedMotion ? 1 : 260;
+  const duration = reducedMotion ? 1 : 450;
   const destinationX = target.left + (target.width - start.width) / 2;
   const destinationY = target.top + (target.height - start.height) / 2;
   const animations = [ghost.animate([
