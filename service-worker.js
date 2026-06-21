@@ -1,4 +1,4 @@
-const CACHE = 'dama-v6';
+const CACHE = 'dama-v7';
 const FILES = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './icon.svg', './gringo-ranch-hero.jpg'];
 
 self.addEventListener('install', event => {
