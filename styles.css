@@ -195,34 +195,28 @@ footer span { color: var(--red); }
 }
 
 @media (max-width: 760px) {
-  .app-shell { padding: 0 14px; }
-  .topbar { height: 70px; grid-template-columns: 1fr auto; }
-  .tagline { display: none; }
-  .hero { min-height: 200px; padding: 34px 8px 25px; align-items: flex-start; }
-  .hero-copy { display: none; }
-  .game-layout { display: flex; flex-direction: column; }
-  .board-column { position: sticky; top: env(safe-area-inset-top, 0); z-index: 10; order: 1; width: 100%; align-self: flex-start; background: var(--paper); }
-  .control-panel { order: 2; width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .control-panel .panel-heading { grid-column: 1 / -1; }
-  .segmented { margin: 0; }
-  .score-card { grid-row: span 2; }
-  .field { margin: 0; }
-  .control-panel .primary-button { margin: 0; }
-  .text-button { margin: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  .app-shell { height: 100svh; padding: 0 14px; overflow: hidden; }
+  .topbar, .hero, footer { display: none; }
+  main { height: 100%; }
+  .game-layout { height: 100%; display: flex; flex-direction: column; gap: 0; }
+  .board-column { position: relative; top: auto; z-index: 10; flex: 0 0 auto; order: 1; width: 100%; align-self: flex-start; background: var(--paper); }
+  .control-panel { order: 2; flex: 1 1 0; min-height: 0; width: 100%; display: block; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding: 20px 6px calc(26px + env(safe-area-inset-bottom)); }
+  .control-panel::-webkit-scrollbar { display: none; }
+  .control-panel > * { margin-bottom: 14px; }
+  .field { margin-bottom: 14px; }
+  .control-panel .primary-button, .text-button { margin-top: 0; }
   .board-frame { padding: 18px; }
   .coordinates.top, .coordinates.bottom { left: 18px; right: 18px; }
   .coordinates.side { top: 18px; bottom: 18px; }
   .coordinates.top { top: 4px; }.coordinates.bottom { bottom: 3px; }.coordinates.left { left: 5px; }.coordinates.right { right: 5px; }
   .turn-banner small { display: none; }
-  footer { margin-top: 40px; }
 }
 
 @media (max-width: 440px) {
   h1 { font-size: 43px; }
   .hero { min-height: 180px; }
-  .control-panel { display: block; }
-  .control-panel > * { margin-bottom: 14px; }
-  .score-card { margin-top: 14px; }
+  .score-card { margin-top: 0; }
   .board-actions { padding: 0 3px; }
 }
 
