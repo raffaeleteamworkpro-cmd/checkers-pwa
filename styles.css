@@ -37,8 +37,8 @@ body.intro-open { overflow: hidden; }
   z-index: 100;
   inset: 0;
   display: grid;
-  place-items: center;
-  padding: 28px;
+  place-items: stretch center;
+  padding: max(24px, env(safe-area-inset-top)) 18px max(16px, env(safe-area-inset-bottom));
   color: var(--paper);
   text-align: center;
   background-color: var(--green);
@@ -46,16 +46,14 @@ body.intro-open { overflow: hidden; }
   background-size: 32px 32px;
   transition: opacity .5s ease, visibility .5s ease;
 }
-.intro-screen::before { content: ''; position: absolute; inset: 20px; border: 1px solid rgba(242, 237, 226, .22); pointer-events: none; }
 .intro-screen.out { opacity: 0; visibility: hidden; pointer-events: none; }
-.intro-content { position: relative; animation: intro-rise .75s ease both; }
-.intro-mark { width: 58px; height: 58px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 0 auto 36px; transform: rotate(45deg); }
-.intro-mark i { display: block; background: var(--paper); }
-.intro-mark i:nth-child(2), .intro-mark i:nth-child(3) { background: var(--red); }
-.intro-content > p { margin: 0 0 15px; font-size: 10px; font-weight: 700; letter-spacing: .3em; opacity: .68; }
-.intro-title { margin: 0; color: var(--paper); font-size: clamp(46px, 9vw, 92px); line-height: .94; letter-spacing: -.045em; }
+.intro-content { position: relative; width: min(100%, 520px); min-height: 0; display: flex; flex-direction: column; animation: intro-rise .75s ease both; }
+.intro-title { flex: 0 0 auto; margin: 0 0 12px; color: var(--paper); font-size: clamp(34px, 9vw, 58px); line-height: .9; letter-spacing: -.04em; text-align: left; }
 .intro-title em { color: var(--red); white-space: nowrap; }
-.intro-enter { display: inline-block; margin-top: 46px; padding-bottom: 6px; border-bottom: 1px solid var(--gold); color: var(--gold); font-size: 9px; font-weight: 700; letter-spacing: .2em; animation: intro-pulse 1.4s ease-in-out infinite; }
+.intro-photo { flex: 1 1 auto; min-height: 0; position: relative; overflow: hidden; border: 1px solid rgba(242, 237, 226, .28); box-shadow: 0 18px 45px rgba(0, 0, 0, .28); }
+.intro-photo::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 0 8px rgba(21, 59, 52, .16); pointer-events: none; }
+.intro-photo img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center 48%; }
+.intro-enter { flex: 0 0 auto; align-self: center; display: inline-block; margin-top: 12px; padding-bottom: 5px; border-bottom: 1px solid var(--gold); color: var(--gold); font-size: 8px; font-weight: 700; letter-spacing: .2em; animation: intro-pulse 1.4s ease-in-out infinite; }
 
 button, select { font: inherit; }
 button { color: inherit; }
