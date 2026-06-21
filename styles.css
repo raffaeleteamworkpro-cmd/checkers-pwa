@@ -105,7 +105,7 @@ h1 em { color: var(--red); font-weight: 600; }
 .status-dot { width: 8px; height: 8px; margin-right: 10px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 4px rgba(189, 75, 63, .2); }
 .turn-banner.cream .status-dot { background: var(--cream); box-shadow: 0 0 0 4px rgba(241, 223, 188, .18); }
 .board-frame { position: relative; padding: 25px; background: #17372f; box-shadow: var(--shadow); }
-.board { display: grid; grid-template-columns: repeat(8, 1fr); aspect-ratio: 1; border: 2px solid #0f2923; box-shadow: 0 0 0 1px rgba(255,255,255,.13); }
+.board { display: grid; grid-template-columns: repeat(8, 1fr); aspect-ratio: 1; border: 2px solid #0f2923; box-shadow: 0 0 0 1px rgba(255,255,255,.13); touch-action: none; -webkit-user-select: none; user-select: none; }
 .board.flipped { transform: rotate(180deg); }
 .board.flipped .piece.king::before { transform: rotate(180deg); }
 .square { position: relative; display: grid; place-items: center; border: 0; padding: 0; min-width: 0; cursor: default; }
@@ -174,7 +174,7 @@ footer span { color: var(--red); }
   .hero { min-height: 200px; padding: 34px 8px 25px; align-items: flex-start; }
   .hero-copy { display: none; }
   .game-layout { display: flex; flex-direction: column; }
-  .board-column { order: 1; width: 100%; }
+  .board-column { position: sticky; top: env(safe-area-inset-top, 0); z-index: 10; order: 1; width: 100%; align-self: flex-start; background: var(--paper); }
   .control-panel { order: 2; width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .control-panel .panel-heading { grid-column: 1 / -1; }
   .segmented { margin: 0; }
