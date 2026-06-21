@@ -33,6 +33,7 @@ let candidates = [];
 let turnSnapshot = null;
 let history = [];
 let aiThinking = false;
+let moveAnimating = false;
 let lastMove = [];
 let hintSquare = null;
 let toastTimer;
@@ -166,6 +167,60 @@ function applyCompleteMove(board, move, color) {
   return next;
 }
 
+function getSquareElement(position) {
+  return boardEl.querySelector(`[data-row="${position.r}"][data-col="${position.c}"]`);
+}
+
+async function animateStep(from, to, captured = null) {
+  const sourceSquare = getSquareElement(from);
+  const targetSquare = getSquareElement(to);
+  const sourcePiece = sourceSquare?.querySelector('.piece');
+  if (!sourcePiece || !targetSquare) return;
+
+  const start = sourcePiece.getBoundingClientRect();
+  const target = targetSquare.getBoundingClientRect();
+  const ghost = sourcePiece.cloneNode(true);
+  ghost.classList.add('move-ghost');
+  if (boardEl.classList.contains('flipped')) ghost.classList.add('flipped-ghost');
+  Object.assign(ghost.style, {
+    left: `${start.left}px`,
+    top: `${start.top}px`,
+    width: `${start.width}px`,
+    height: `${start.height}px`,
+  });
+
+  document.body.appendChild(ghost);
+  sourcePiece.style.opacity = '0';
+  boardEl.dataset.animating = 'true';
+  boardEl.dispatchEvent(new CustomEvent('dama:animationstart', { detail: { from, to, captured } }));
+
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const duration = reducedMotion ? 1 : 260;
+  const destinationX = target.left + (target.width - start.width) / 2;
+  const destinationY = target.top + (target.height - start.height) / 2;
+  const animations = [ghost.animate([
+    { transform: 'translate3d(0, 0, 0) scale(1)' },
+    { transform: `translate3d(${destinationX - start.left}px, ${destinationY - start.top}px, 0) scale(1.04)`, offset: .72 },
+    { transform: `translate3d(${destinationX - start.left}px, ${destinationY - start.top}px, 0) scale(1)` },
+  ], { duration, easing: 'cubic-bezier(.22,.78,.24,1)', fill: 'forwards' })];
+
+  if (captured) {
+    const capturedPiece = getSquareElement(captured)?.querySelector('.piece');
+    if (capturedPiece) {
+      animations.push(capturedPiece.animate([
+        { opacity: 1, transform: 'scale(1)', offset: 0 },
+        { opacity: 1, transform: 'scale(1)', offset: .35 },
+        { opacity: 0, transform: 'scale(.42)', offset: 1 },
+      ], { duration, easing: 'ease-in', fill: 'forwards' }));
+    }
+  }
+
+  await Promise.all(animations.map(animation => animation.finished.catch(() => undefined)));
+  ghost.remove();
+  delete boardEl.dataset.animating;
+  boardEl.dispatchEvent(new CustomEvent('dama:animationend', { detail: { from, to, captured } }));
+}
+
 function finishTurn(finalPosition, movedPiece) {
   if (!movedPiece.king && ((movedPiece.color === RED && finalPosition.r === 0) || (movedPiece.color === CREAM && finalPosition.r === 7))) {
     movedPiece.king = true;
@@ -185,8 +240,8 @@ function finishTurn(finalPosition, movedPiece) {
   if (!state.winner && isAITurn()) scheduleAI();
 }
 
-function selectSquare(r, c) {
-  if (state.winner || aiThinking) return;
+async function selectSquare(r, c) {
+  if (state.winner || aiThinking || moveAnimating) return;
   if (isAITurn()) return;
   const pos = { r, c };
   const piece = state.board[r][c];
@@ -196,12 +251,16 @@ function selectSquare(r, c) {
     if (matching.length) {
       if (!turnSnapshot) turnSnapshot = cloneState();
       const step = matching[0].steps[0];
+      const from = selected;
       const movingPiece = state.board[selected.r][selected.c];
-      state.board[selected.r][selected.c] = null;
+      moveAnimating = true;
+      sound(step.captured ? 'capture' : 'move');
+      await animateStep(from, pos, step.captured);
+      state.board[from.r][from.c] = null;
       if (step.captured) state.board[step.captured.r][step.captured.c] = null;
       state.board[pos.r][pos.c] = movingPiece;
-      lastMove = [selected, pos];
-      sound(step.captured ? 'capture' : 'move');
+      lastMove = [from, pos];
+      moveAnimating = false;
 
       const remaining = matching.filter(move => move.steps.length > 1).map(move => ({ from: pos, steps: move.steps.slice(1) }));
       if (remaining.length) {
@@ -299,7 +358,7 @@ function chooseAIMove() {
 function scheduleAI() {
   aiThinking = true;
   render();
-  setTimeout(() => {
+  setTimeout(async () => {
     const move = chooseAIMove();
     if (!move) {
       aiThinking = false;
@@ -309,13 +368,27 @@ function scheduleAI() {
     }
     const before = cloneState();
     const computer = aiColor();
-    const piece = state.board[move.from.r][move.from.c];
-    state.board = applyCompleteMove(state.board, move, computer);
-    const finalPos = move.steps.at(-1).to;
+    const movingPiece = state.board[move.from.r][move.from.c];
+    let current = move.from;
+    moveAnimating = true;
+    for (const step of move.steps) {
+      sound(step.captured ? 'capture' : 'move');
+      await animateStep(current, step.to, step.captured);
+      state.board[current.r][current.c] = null;
+      if (step.captured) state.board[step.captured.r][step.captured.c] = null;
+      state.board[step.to.r][step.to.c] = movingPiece;
+      lastMove = [current, step.to];
+      current = step.to;
+      render();
+    }
+    const finalPos = current;
+    moveAnimating = false;
     lastMove = [move.from, finalPos];
     history.push(before);
-    sound(move.steps[0].captured ? 'capture' : 'move');
-    if (!piece.king && ((computer === RED && finalPos.r === 0) || (computer === CREAM && finalPos.r === 7))) sound('king');
+    if (!movingPiece.king && ((computer === RED && finalPos.r === 0) || (computer === CREAM && finalPos.r === 7))) {
+      movingPiece.king = true;
+      sound('king');
+    }
     state.turn = opponent(computer);
     if (state.turn === RED) state.moveNumber++;
     aiThinking = false;
@@ -326,7 +399,7 @@ function scheduleAI() {
 }
 
 function undo() {
-  if (!history.length || aiThinking) return;
+  if (!history.length || aiThinking || moveAnimating) return;
   let previous = history.pop();
   if (state.mode === 'ai' && previous.turn === aiColor() && history.length) previous = history.pop();
   const preservedMode = state.mode;
@@ -345,7 +418,7 @@ function undo() {
 }
 
 function suggestMove() {
-  if (aiThinking || state.winner || isAITurn()) return;
+  if (aiThinking || moveAnimating || state.winner || isAITurn()) return;
   const moves = getLegalMoves(state.board, state.turn);
   if (!moves.length) return;
   const best = moves.map(move => ({ move, score: minimax(applyCompleteMove(state.board, move, state.turn), opponent(state.turn), 2, -Infinity, Infinity, state.turn) }))
@@ -378,6 +451,8 @@ function render() {
       const square = document.createElement('button');
       square.type = 'button';
       square.className = `square ${(r + c) % 2 ? 'dark' : 'light'}`;
+      square.dataset.row = r;
+      square.dataset.col = c;
       square.setAttribute('role', 'gridcell');
       const pos = { r, c };
       const piece = state.board[r][c];
@@ -424,11 +499,12 @@ function render() {
   if (!selected) turnHint.textContent = aiThinking ? 'STA VALUTANDO LE DIAGONALI' : `SELEZIONA UNA PEDINA ${state.turn === RED ? 'ROSSA' : 'AVORIO'}`;
   else turnHint.textContent = candidates[0]?.steps[0].captured ? 'SCEGLI DOVE CATTURARE' : 'SCEGLI LA CASELLA';
   const onlyOpeningAI = state.mode === 'ai' && history.length === 1 && history[0].turn === aiColor();
-  undoButton.disabled = !history.length || aiThinking || onlyOpeningAI;
-  hintButton.disabled = aiThinking || Boolean(state.winner);
+  undoButton.disabled = !history.length || aiThinking || moveAnimating || onlyOpeningAI;
+  hintButton.disabled = aiThinking || moveAnimating || Boolean(state.winner);
 }
 
 function setMode(mode) {
+  if (aiThinking || moveAnimating) return;
   state.mode = mode;
   document.querySelectorAll('.segment').forEach(button => button.classList.toggle('active', button.dataset.mode === mode));
   difficultyField.hidden = mode === 'local';
@@ -436,7 +512,7 @@ function setMode(mode) {
 }
 
 function setPlayerColor(color) {
-  if (state.mode !== 'ai' || aiThinking || state.humanColor === color) return;
+  if (state.mode !== 'ai' || aiThinking || moveAnimating || state.humanColor === color) return;
   state.humanColor = color;
   resetGame();
   showToast(`Giochi con ${color === RED ? 'il Rosso' : 'l’Avorio'}.`);
@@ -456,6 +532,7 @@ function resetGame() {
   turnSnapshot = null;
   lastMove = [];
   aiThinking = false;
+  moveAnimating = false;
   gameOver.hidden = true;
   saveGame();
   render();
