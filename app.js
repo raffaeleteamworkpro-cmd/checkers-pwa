@@ -8,6 +8,7 @@ const turnText = document.getElementById('turnText');
 const turnHint = document.getElementById('turnHint');
 const redPlayer = document.getElementById('redPlayer');
 const creamPlayer = document.getElementById('creamPlayer');
+const scoreCard = document.querySelector('.score-card');
 const redCount = document.getElementById('redCount');
 const creamCount = document.getElementById('creamCount');
 const redLabel = document.getElementById('redLabel');
@@ -52,6 +53,7 @@ function newState() {
     turn: RED,
     mode: state?.mode || 'ai',
     difficulty: difficultySelect.value,
+    humanColor: state?.humanColor || RED,
     moveNumber: 1,
     sound: state?.sound ?? true,
     winner: null,
@@ -69,6 +71,8 @@ function cloneState(value = state) {
 function key(pos) { return `${pos.r},${pos.c}`; }
 function inside(r, c) { return r >= 0 && r < SIZE && c >= 0 && c < SIZE; }
 function opponent(color) { return color === RED ? CREAM : RED; }
+function aiColor() { return opponent(state.humanColor); }
+function isAITurn() { return state.mode === 'ai' && state.turn === aiColor(); }
 function samePos(a, b) { return a && b && a.r === b.r && a.c === b.c; }
 
 function directions(piece) {
@@ -168,12 +172,12 @@ function finishTurn(finalPosition, movedPiece) {
   saveGame();
   checkGameEnd();
   render();
-  if (!state.winner && state.mode === 'ai' && state.turn === CREAM) scheduleAI();
+  if (!state.winner && isAITurn()) scheduleAI();
 }
 
 function selectSquare(r, c) {
   if (state.winner || aiThinking) return;
-  if (state.mode === 'ai' && state.turn === CREAM) return;
+  if (isAITurn()) return;
   const pos = { r, c };
   const piece = state.board[r][c];
 
@@ -228,7 +232,7 @@ function checkGameEnd() {
 }
 
 function showGameOver() {
-  const humanWon = state.winner === RED;
+  const humanWon = state.winner === state.humanColor;
   const local = state.mode === 'local';
   resultTitle.textContent = local ? `${state.winner === RED ? 'Rosso' : 'Avorio'} vince!` : humanWon ? 'Hai vinto!' : 'Vince il computer';
   resultCopy.textContent = humanWon || local ? 'La corona premia chi vede più lontano.' : 'Questa volta ha calcolato una diagonale in più.';
@@ -236,7 +240,7 @@ function showGameOver() {
   sound(humanWon ? 'win' : 'lose');
 }
 
-function evaluate(board) {
+function evaluate(board, maximizingColor) {
   let score = 0;
   for (let r = 0; r < SIZE; r++) {
     for (let c = 0; c < SIZE; c++) {
@@ -244,19 +248,19 @@ function evaluate(board) {
       if (!p) continue;
       const value = p.king ? 5.2 : 3 + (p.color === CREAM ? r : 7 - r) * .08;
       const center = r > 1 && r < 6 && c > 1 && c < 6 ? .15 : 0;
-      score += (p.color === CREAM ? 1 : -1) * (value + center);
+      score += (p.color === maximizingColor ? 1 : -1) * (value + center);
     }
   }
   return score;
 }
 
-function minimax(board, color, depth, alpha, beta) {
+function minimax(board, color, depth, alpha, beta, maximizingColor) {
   const moves = getLegalMoves(board, color);
-  if (!depth || !moves.length) return evaluate(board) + (!moves.length ? (color === CREAM ? -100 : 100) : 0);
-  if (color === CREAM) {
+  if (!depth || !moves.length) return evaluate(board, maximizingColor) + (!moves.length ? (color === maximizingColor ? -100 : 100) : 0);
+  if (color === maximizingColor) {
     let best = -Infinity;
     for (const move of moves) {
-      best = Math.max(best, minimax(applyCompleteMove(board, move, color), RED, depth - 1, alpha, beta));
+      best = Math.max(best, minimax(applyCompleteMove(board, move, color), opponent(color), depth - 1, alpha, beta, maximizingColor));
       alpha = Math.max(alpha, best);
       if (beta <= alpha) break;
     }
@@ -264,7 +268,7 @@ function minimax(board, color, depth, alpha, beta) {
   }
   let best = Infinity;
   for (const move of moves) {
-    best = Math.min(best, minimax(applyCompleteMove(board, move, color), CREAM, depth - 1, alpha, beta));
+    best = Math.min(best, minimax(applyCompleteMove(board, move, color), opponent(color), depth - 1, alpha, beta, maximizingColor));
     beta = Math.min(beta, best);
     if (beta <= alpha) break;
   }
@@ -272,11 +276,12 @@ function minimax(board, color, depth, alpha, beta) {
 }
 
 function chooseAIMove() {
-  const moves = getLegalMoves(state.board, CREAM);
+  const computer = aiColor();
+  const moves = getLegalMoves(state.board, computer);
   if (!moves.length) return null;
   if (state.difficulty === 'easy') return moves[Math.floor(Math.random() * moves.length)];
   const depth = state.difficulty === 'hard' ? 5 : 2;
-  const scored = moves.map(move => ({ move, score: minimax(applyCompleteMove(state.board, move, CREAM), RED, depth - 1, -Infinity, Infinity) + Math.random() * .03 }));
+  const scored = moves.map(move => ({ move, score: minimax(applyCompleteMove(state.board, move, computer), opponent(computer), depth - 1, -Infinity, Infinity, computer) + Math.random() * .03 }));
   scored.sort((a, b) => b.score - a.score);
   return scored[0].move;
 }
@@ -293,15 +298,16 @@ function scheduleAI() {
       return;
     }
     const before = cloneState();
+    const computer = aiColor();
     const piece = state.board[move.from.r][move.from.c];
-    state.board = applyCompleteMove(state.board, move, CREAM);
+    state.board = applyCompleteMove(state.board, move, computer);
     const finalPos = move.steps.at(-1).to;
     lastMove = [move.from, finalPos];
     history.push(before);
     sound(move.steps[0].captured ? 'capture' : 'move');
-    if (!piece.king && finalPos.r === 7) sound('king');
-    state.turn = RED;
-    state.moveNumber++;
+    if (!piece.king && ((computer === RED && finalPos.r === 0) || (computer === CREAM && finalPos.r === 7))) sound('king');
+    state.turn = opponent(computer);
+    if (state.turn === RED) state.moveNumber++;
     aiThinking = false;
     saveGame();
     checkGameEnd();
@@ -312,7 +318,7 @@ function scheduleAI() {
 function undo() {
   if (!history.length || aiThinking) return;
   let previous = history.pop();
-  if (state.mode === 'ai' && previous.turn === CREAM && history.length) previous = history.pop();
+  if (state.mode === 'ai' && previous.turn === aiColor() && history.length) previous = history.pop();
   const preservedMode = state.mode;
   const preservedDifficulty = state.difficulty;
   state = previous;
@@ -329,11 +335,11 @@ function undo() {
 }
 
 function suggestMove() {
-  if (aiThinking || state.winner || (state.mode === 'ai' && state.turn === CREAM)) return;
+  if (aiThinking || state.winner || isAITurn()) return;
   const moves = getLegalMoves(state.board, state.turn);
   if (!moves.length) return;
-  const best = moves.map(move => ({ move, score: minimax(applyCompleteMove(state.board, move, state.turn), opponent(state.turn), 2, -Infinity, Infinity) }))
-    .sort((a, b) => state.turn === CREAM ? b.score - a.score : a.score - b.score)[0].move;
+  const best = moves.map(move => ({ move, score: minimax(applyCompleteMove(state.board, move, state.turn), opponent(state.turn), 2, -Infinity, Infinity, state.turn) }))
+    .sort((a, b) => b.score - a.score)[0].move;
   hintSquare = best.from;
   render();
   showToast(`Prova da ${String.fromCharCode(65 + best.from.c)}${8 - best.from.r}.`);
@@ -342,6 +348,14 @@ function suggestMove() {
 
 function render() {
   boardEl.innerHTML = '';
+  const flipped = state.mode === 'ai' && state.humanColor === CREAM;
+  boardEl.classList.toggle('flipped', flipped);
+  document.querySelectorAll('.coordinates.top span, .coordinates.bottom span').forEach((span, index) => {
+    span.textContent = String.fromCharCode(65 + (flipped ? 7 - index : index));
+  });
+  document.querySelectorAll('.coordinates.side').forEach(side => {
+    side.querySelectorAll('span').forEach((span, index) => { span.textContent = flipped ? index + 1 : 8 - index; });
+  });
   const targets = new Map();
   for (const move of candidates) targets.set(key(move.steps[0].to), Boolean(move.steps[0].captured));
   const legal = !turnSnapshot ? getLegalMoves(state.board, state.turn) : [];
@@ -384,11 +398,21 @@ function render() {
   moveCounter.textContent = `MOSSA ${state.moveNumber}`;
   redPlayer.classList.toggle('active', state.turn === RED);
   creamPlayer.classList.toggle('active', state.turn === CREAM);
+  redPlayer.classList.toggle('chosen', state.mode === 'ai' && state.humanColor === RED);
+  creamPlayer.classList.toggle('chosen', state.mode === 'ai' && state.humanColor === CREAM);
+  redPlayer.setAttribute('aria-pressed', String(state.mode === 'ai' && state.humanColor === RED));
+  creamPlayer.setAttribute('aria-pressed', String(state.mode === 'ai' && state.humanColor === CREAM));
+  redPlayer.disabled = state.mode !== 'ai';
+  creamPlayer.disabled = state.mode !== 'ai';
+  scoreCard.classList.toggle('selectable', state.mode === 'ai');
+  redLabel.textContent = state.mode === 'ai' ? (state.humanColor === RED ? 'TU · SELEZIONATO' : 'COMPUTER · TOCCA PER SCEGLIERE') : 'GIOCATORE 1';
+  creamLabel.textContent = state.mode === 'ai' ? (state.humanColor === CREAM ? 'TU · SELEZIONATO' : 'COMPUTER · TOCCA PER SCEGLIERE') : 'GIOCATORE 2';
   turnBanner.classList.toggle('cream', state.turn === CREAM);
-  turnText.textContent = aiThinking ? 'IL COMPUTER PENSA' : state.turn === RED ? (state.mode === 'ai' ? 'TOCCA A TE' : 'TURNO DEL ROSSO') : 'TURNO DELL’AVORIO';
+  turnText.textContent = aiThinking ? 'IL COMPUTER PENSA' : state.mode === 'ai' ? (state.turn === state.humanColor ? 'TOCCA A TE' : 'TURNO DEL COMPUTER') : state.turn === RED ? 'TURNO DEL ROSSO' : 'TURNO DELL’AVORIO';
   if (!selected) turnHint.textContent = aiThinking ? 'STA VALUTANDO LE DIAGONALI' : `SELEZIONA UNA PEDINA ${state.turn === RED ? 'ROSSA' : 'AVORIO'}`;
   else turnHint.textContent = candidates[0]?.steps[0].captured ? 'SCEGLI DOVE CATTURARE' : 'SCEGLI LA CASELLA';
-  undoButton.disabled = !history.length || aiThinking;
+  const onlyOpeningAI = state.mode === 'ai' && history.length === 1 && history[0].turn === aiColor();
+  undoButton.disabled = !history.length || aiThinking || onlyOpeningAI;
   hintButton.disabled = aiThinking || Boolean(state.winner);
 }
 
@@ -396,17 +420,24 @@ function setMode(mode) {
   state.mode = mode;
   document.querySelectorAll('.segment').forEach(button => button.classList.toggle('active', button.dataset.mode === mode));
   difficultyField.hidden = mode === 'local';
-  redLabel.textContent = mode === 'ai' ? 'TU' : 'GIOCATORE 1';
-  creamLabel.textContent = mode === 'ai' ? 'COMPUTER' : 'GIOCATORE 2';
   resetGame();
+}
+
+function setPlayerColor(color) {
+  if (state.mode !== 'ai' || aiThinking || state.humanColor === color) return;
+  state.humanColor = color;
+  resetGame();
+  showToast(`Giochi con ${color === RED ? 'il Rosso' : 'l’Avorio'}.`);
 }
 
 function resetGame() {
   const mode = state?.mode || 'ai';
   const soundEnabled = state?.sound ?? true;
+  const humanColor = state?.humanColor || RED;
   state = newState();
   state.mode = mode;
   state.sound = soundEnabled;
+  state.humanColor = humanColor;
   history = [];
   selected = null;
   candidates = [];
@@ -416,6 +447,7 @@ function resetGame() {
   gameOver.hidden = true;
   saveGame();
   render();
+  if (isAITurn()) scheduleAI();
 }
 
 function showToast(message) {
@@ -456,6 +488,8 @@ function loadGame() {
 }
 
 document.querySelectorAll('.segment').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
+redPlayer.addEventListener('click', () => setPlayerColor(RED));
+creamPlayer.addEventListener('click', () => setPlayerColor(CREAM));
 difficultySelect.addEventListener('change', () => { state.difficulty = difficultySelect.value; saveGame(); });
 newGameButton.addEventListener('click', resetGame);
 playAgainButton.addEventListener('click', resetGame);
@@ -473,13 +507,14 @@ document.addEventListener('keydown', event => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); undo(); }
 });
 
-state = loadGame() || { board: initialBoard(), turn: RED, mode: 'ai', difficulty: 'medium', moveNumber: 1, sound: true, winner: null };
+state = loadGame() || { board: initialBoard(), turn: RED, mode: 'ai', difficulty: 'medium', humanColor: RED, moveNumber: 1, sound: true, winner: null };
+state.humanColor ||= RED;
 difficultySelect.value = state.difficulty;
 document.querySelectorAll('.segment').forEach(button => button.classList.toggle('active', button.dataset.mode === state.mode));
 difficultyField.hidden = state.mode === 'local';
-redLabel.textContent = state.mode === 'ai' ? 'TU' : 'GIOCATORE 1';
-creamLabel.textContent = state.mode === 'ai' ? 'COMPUTER' : 'GIOCATORE 2';
+redLabel.textContent = state.mode === 'ai' ? (state.humanColor === RED ? 'TU' : 'COMPUTER') : 'GIOCATORE 1';
+creamLabel.textContent = state.mode === 'ai' ? (state.humanColor === CREAM ? 'TU' : 'COMPUTER') : 'GIOCATORE 2';
 soundButton.classList.toggle('muted', !state.sound);
 render();
 if (state.winner) showGameOver();
-else if (state.mode === 'ai' && state.turn === CREAM) scheduleAI();
+else if (isAITurn()) scheduleAI();
