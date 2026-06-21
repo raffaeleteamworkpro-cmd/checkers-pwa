@@ -143,6 +143,9 @@ h1 em { color: var(--red); font-weight: 600; }
 .piece.red { background: var(--red); border: 2px solid var(--red-dark); }
 .piece.cream { background: var(--cream); border: 2px solid #b59f74; }
 .piece.king::before { content: '♛'; position: absolute; inset: 0; display: grid; place-items: center; color: var(--gold); font-size: clamp(15px, 2.5vw, 28px); text-shadow: 0 1px #6c4b16; z-index: 1; }
+.move-ghost { position: fixed !important; display: block; z-index: 120; margin: 0; pointer-events: none; transition: none !important; will-change: transform; }
+.move-ghost.flipped-ghost.king::before { transform: rotate(180deg); }
+.board[data-animating="true"] .target { opacity: .35; animation-play-state: paused; }
 .square.playable:hover .piece { transform: translateY(-3px); box-shadow: 0 10px 12px rgba(0,0,0,.28), inset 0 3px 2px rgba(255,255,255,.23), inset 0 -4px 4px rgba(0,0,0,.18); }
 .square.selected .piece { transform: translateY(-4px) scale(1.06); box-shadow: 0 0 0 4px var(--gold), 0 12px 15px rgba(0,0,0,.3); }
 .target { position: absolute; z-index: 3; width: 24%; height: 24%; border: 3px solid var(--gold); border-radius: 50%; background: rgba(216,168,76,.25); animation: pulse 1.5s infinite; }
