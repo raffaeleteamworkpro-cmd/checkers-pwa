@@ -30,6 +30,33 @@ body {
   font-family: 'DM Sans', system-ui, sans-serif;
 }
 
+body.intro-open { overflow: hidden; }
+
+.intro-screen {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  color: var(--paper);
+  text-align: center;
+  background-color: var(--green);
+  background-image: linear-gradient(rgba(242, 237, 226, .045) 1px, transparent 1px), linear-gradient(90deg, rgba(242, 237, 226, .045) 1px, transparent 1px);
+  background-size: 32px 32px;
+  transition: opacity .5s ease, visibility .5s ease;
+}
+.intro-screen::before { content: ''; position: absolute; inset: 20px; border: 1px solid rgba(242, 237, 226, .22); pointer-events: none; }
+.intro-screen.out { opacity: 0; visibility: hidden; pointer-events: none; }
+.intro-content { position: relative; animation: intro-rise .75s ease both; }
+.intro-mark { width: 58px; height: 58px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 0 auto 36px; transform: rotate(45deg); }
+.intro-mark i { display: block; background: var(--paper); }
+.intro-mark i:nth-child(2), .intro-mark i:nth-child(3) { background: var(--red); }
+.intro-content > p { margin: 0 0 15px; font-size: 10px; font-weight: 700; letter-spacing: .3em; opacity: .68; }
+.intro-title { margin: 0; color: var(--paper); font-size: clamp(46px, 9vw, 92px); line-height: .94; letter-spacing: -.045em; }
+.intro-title em { color: var(--red); white-space: nowrap; }
+.intro-enter { display: inline-block; margin-top: 46px; padding-bottom: 6px; border-bottom: 1px solid var(--gold); color: var(--gold); font-size: 9px; font-weight: 700; letter-spacing: .2em; animation: intro-pulse 1.4s ease-in-out infinite; }
+
 button, select { font: inherit; }
 button { color: inherit; }
 button:focus-visible, select:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
@@ -161,6 +188,8 @@ footer span { color: var(--red); }
 
 @keyframes pulse { 50% { transform: scale(.82); opacity: .7; } }
 @keyframes hint { 50% { transform: translateY(-6px) scale(1.06); } }
+@keyframes intro-rise { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes intro-pulse { 50% { opacity: .45; } }
 
 @media (max-width: 1050px) {
   .game-layout { grid-template-columns: minmax(190px, 240px) minmax(420px, 600px); }
