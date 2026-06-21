@@ -1,4 +1,4 @@
-const CACHE = 'dama-v4';
+const CACHE = 'dama-v5';
 const FILES = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', event => {
