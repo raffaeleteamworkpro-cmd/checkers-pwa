@@ -350,8 +350,10 @@ function render() {
   boardEl.innerHTML = '';
   const flipped = state.mode === 'ai' && state.humanColor === CREAM;
   boardEl.classList.toggle('flipped', flipped);
-  document.querySelectorAll('.coordinates.top span, .coordinates.bottom span').forEach((span, index) => {
-    span.textContent = String.fromCharCode(65 + (flipped ? 7 - index : index));
+  document.querySelectorAll('.coordinates.top, .coordinates.bottom').forEach(row => {
+    row.querySelectorAll('span').forEach((span, index) => {
+      span.textContent = String.fromCharCode(65 + (flipped ? 7 - index : index));
+    });
   });
   document.querySelectorAll('.coordinates.side').forEach(side => {
     side.querySelectorAll('span').forEach((span, index) => { span.textContent = flipped ? index + 1 : 8 - index; });
