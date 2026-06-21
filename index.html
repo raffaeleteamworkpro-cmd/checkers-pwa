@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#102f29" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="DAMA" />
+    <meta
+      name="description"
+      content="DAMA — una moderna web app per giocare a dama italiana, in due o contro il computer."
+    />
+    <title>DAMA — Il classico, una mossa alla volta</title>
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="DAMA, torna alla partita">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          <span>DAMA</span>
+        </a>
+        <p class="tagline">IL CLASSICO, UNA MOSSA ALLA VOLTA</p>
+        <button class="icon-button sound-button" id="soundButton" type="button" aria-label="Disattiva suoni" title="Suoni">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9v6h4l5 4V5L9 9H5Zm11.5 3c0-1.77-1-3.29-2.5-4.03v8.05A4.47 4.47 0 0 0 16.5 12Zm-2.5-8.8v2.06a7 7 0 0 1 0 13.48v2.06a9 9 0 0 0 0-17.6Z"/></svg>
+        </button>
+      </header>
+
+      <main>
+        <section class="hero" aria-labelledby="gameTitle">
+          <div>
+            <p class="eyebrow">DAMA ITALIANA</p>
+            <h1 id="gameTitle">La strategia<br />ha il suo <em>ritmo.</em></h1>
+          </div>
+          <p class="hero-copy">Pensa in diagonale. Anticipa l’avversario.<br />Conquista la corona.</p>
+        </section>
+
+        <section class="game-layout" aria-label="Partita di dama">
+          <aside class="panel control-panel">
+            <div class="panel-heading">
+              <span class="section-number">01</span>
+              <div>
+                <p class="micro-label">MODALITÀ</p>
+                <h2>Imposta la partita</h2>
+              </div>
+            </div>
+
+            <div class="segmented" role="group" aria-label="Modalità di gioco">
+              <button type="button" class="segment active" data-mode="ai">VS COMPUTER</button>
+              <button type="button" class="segment" data-mode="local">2 GIOCATORI</button>
+            </div>
+
+            <label class="field" id="difficultyField">
+              <span>DIFFICOLTÀ</span>
+              <select id="difficultySelect">
+                <option value="easy">Rilassata</option>
+                <option value="medium" selected>Calcolatrice</option>
+                <option value="hard">Spietata</option>
+              </select>
+            </label>
+
+            <div class="score-card">
+              <div class="player-row active" id="redPlayer">
+                <span class="mini-piece red"></span>
+                <div><b>ROSSO</b><small id="redLabel">TU</small></div>
+                <strong id="redCount">12</strong>
+              </div>
+              <div class="score-divider"><span></span><small>PEZZI</small><span></span></div>
+              <div class="player-row" id="creamPlayer">
+                <span class="mini-piece cream"></span>
+                <div><b>AVORIO</b><small id="creamLabel">COMPUTER</small></div>
+                <strong id="creamCount">12</strong>
+              </div>
+            </div>
+
+            <button class="primary-button" id="newGameButton" type="button">
+              <span>NUOVA PARTITA</span><span aria-hidden="true">↗</span>
+            </button>
+            <button class="text-button" id="undoButton" type="button" disabled>↶ ANNULLA ULTIMA MOSSA</button>
+          </aside>
+
+          <div class="board-column">
+            <div class="turn-banner" id="turnBanner" aria-live="polite">
+              <span class="status-dot"></span>
+              <span id="turnText">TOCCA A TE</span>
+              <small id="turnHint">SELEZIONA UNA PEDINA ROSSA</small>
+            </div>
+            <div class="board-frame">
+              <div class="coordinates top" aria-hidden="true"><span>A</span><span>B</span><span>C</span><span>D</span><span>E</span><span>F</span><span>G</span><span>H</span></div>
+              <div class="coordinates side left" aria-hidden="true"><span>8</span><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span></div>
+              <div id="board" class="board" role="grid" aria-label="Damiera"></div>
+              <div class="coordinates side right" aria-hidden="true"><span>8</span><span>7</span><span>6</span><span>5</span><span>4</span><span>3</span><span>2</span><span>1</span></div>
+              <div class="coordinates bottom" aria-hidden="true"><span>A</span><span>B</span><span>C</span><span>D</span><span>E</span><span>F</span><span>G</span><span>H</span></div>
+            </div>
+            <div class="board-actions">
+              <button class="hint-button" id="hintButton" type="button"><span>✦</span> SUGGERISCI MOSSA</button>
+              <p id="moveCounter">MOSSA 1</p>
+            </div>
+          </div>
+
+          <aside class="panel rules-panel">
+            <div class="panel-heading">
+              <span class="section-number">02</span>
+              <div>
+                <p class="micro-label">GUIDA RAPIDA</p>
+                <h2>Come si gioca</h2>
+              </div>
+            </div>
+
+            <ol class="rules-list">
+              <li><span>01</span><div><b>MUOVI IN DIAGONALE</b><p>Le pedine avanzano di una casella sulle caselle scure.</p></div></li>
+              <li><span>02</span><div><b>LA PRESA È OBBLIGATORIA</b><p>Salta la pedina avversaria. Se puoi continuare, devi farlo.</p></div></li>
+              <li><span>03</span><div><b>CONQUISTA LA CORONA</b><p>Raggiungi il lato opposto per trasformare la pedina in dama.</p></div></li>
+            </ol>
+
+            <div class="legend">
+              <p><span class="legend-mark move"></span>MOSSA POSSIBILE</p>
+              <p><span class="legend-mark capture"></span>PRESA DISPONIBILE</p>
+              <p><span class="legend-mark selected"></span>PEDINA SELEZIONATA</p>
+            </div>
+
+            <div class="quote">
+              <span>“</span>
+              <p>Ogni mossa racconta<br />quella che verrà.</p>
+            </div>
+          </aside>
+        </section>
+      </main>
+
+      <footer>
+        <p>DAMA <span>•</span> GIOCO ITALIANO</p>
+        <p>FATTO PER CHI PENSA DUE MOSSE AVANTI</p>
+      </footer>
+    </div>
+
+    <div class="game-over" id="gameOver" role="dialog" aria-modal="true" aria-labelledby="resultTitle" hidden>
+      <div class="game-over-card">
+        <p class="eyebrow">PARTITA CONCLUSA</p>
+        <div class="result-crown">♛</div>
+        <h2 id="resultTitle">Hai vinto!</h2>
+        <p id="resultCopy">Una diagonale alla volta.</p>
+        <button class="primary-button" id="playAgainButton" type="button"><span>GIOCA ANCORA</span><span>↗</span></button>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="app.js"></script>
+    <script>
+      if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+        navigator.serviceWorker.register('./service-worker.js');
+      }
+    </script>
+  </body>
+</html>
