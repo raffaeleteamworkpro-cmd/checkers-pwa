@@ -25,6 +25,7 @@ const resultTitle = document.getElementById('resultTitle');
 const resultCopy = document.getElementById('resultCopy');
 const soundButton = document.getElementById('soundButton');
 const toastEl = document.getElementById('toast');
+const introScreen = document.getElementById('introScreen');
 
 let state;
 let selected = null;
@@ -35,6 +36,15 @@ let aiThinking = false;
 let lastMove = [];
 let hintSquare = null;
 let toastTimer;
+let introDismissed = false;
+
+function dismissIntro() {
+  if (introDismissed) return;
+  introDismissed = true;
+  introScreen.classList.add('out');
+  document.body.classList.remove('intro-open');
+  setTimeout(() => { introScreen.hidden = true; }, 520);
+}
 
 function initialBoard() {
   return Array.from({ length: SIZE }, (_, row) =>
@@ -490,6 +500,8 @@ function loadGame() {
 }
 
 document.querySelectorAll('.segment').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
+introScreen.addEventListener('click', dismissIntro);
+setTimeout(dismissIntro, 2400);
 redPlayer.addEventListener('click', () => setPlayerColor(RED));
 creamPlayer.addEventListener('click', () => setPlayerColor(CREAM));
 difficultySelect.addEventListener('change', () => { state.difficulty = difficultySelect.value; saveGame(); });
