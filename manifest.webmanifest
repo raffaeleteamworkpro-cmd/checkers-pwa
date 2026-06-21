@@ -1,0 +1,19 @@
+{
+  "name": "DAMA — Dama italiana",
+  "short_name": "DAMA",
+  "description": "Gioca a dama italiana, in due o contro il computer.",
+  "lang": "it",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f2ede2",
+  "theme_color": "#153b34",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
