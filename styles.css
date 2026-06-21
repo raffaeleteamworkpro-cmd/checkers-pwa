@@ -201,11 +201,19 @@ footer span { color: var(--red); }
   main { height: 100%; }
   .game-layout { height: 100%; display: flex; flex-direction: column; gap: 0; }
   .board-column { position: relative; top: auto; z-index: 10; flex: 0 0 auto; order: 1; width: 100%; align-self: flex-start; background: var(--paper); }
-  .control-panel { order: 2; flex: 1 1 0; min-height: 0; width: 100%; display: block; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding: 20px 6px calc(26px + env(safe-area-inset-bottom)); }
-  .control-panel::-webkit-scrollbar { display: none; }
-  .control-panel > * { margin-bottom: 14px; }
-  .field { margin-bottom: 14px; }
-  .control-panel .primary-button, .text-button { margin-top: 0; }
+  .control-panel { order: 2; flex: 1 1 0; min-height: 0; width: 100%; display: flex; flex-direction: column; overflow: hidden; padding: 10px 6px max(8px, env(safe-area-inset-bottom)); }
+  .control-panel .panel-heading { display: none; }
+  .control-panel > * { flex: 0 0 auto; margin-bottom: 8px; }
+  .segmented { min-height: 42px; margin-top: 0; }
+  .segment { min-height: 40px; }
+  .field { margin-bottom: 8px; }
+  .field > span { margin-bottom: 4px; }
+  .field select { padding-top: 9px; padding-bottom: 9px; }
+  .score-card { flex: 1 1 auto; min-height: 92px; max-height: 150px; display: flex; flex-direction: column; justify-content: center; padding: 8px 12px; }
+  .player-row { padding: 4px 8px; }
+  .score-divider { margin: 5px 0; }
+  .control-panel .primary-button { min-height: 47px; margin-top: 0; margin-bottom: 6px; }
+  .text-button { min-height: 18px; margin: 0; }
   .board-frame { padding: 18px; }
   .coordinates.top, .coordinates.bottom { left: 18px; right: 18px; }
   .coordinates.side { top: 18px; bottom: 18px; }
@@ -218,6 +226,17 @@ footer span { color: var(--red); }
   .hero { min-height: 180px; }
   .score-card { margin-top: 0; }
   .board-actions { padding: 0 3px; }
+}
+
+@media (max-width: 390px), (max-height: 760px) {
+  .turn-banner { height: 43px; }
+  .board-actions { min-height: 43px; }
+  .board-frame { padding: 15px; }
+  .coordinates.top, .coordinates.bottom { left: 15px; right: 15px; }
+  .coordinates.side { top: 15px; bottom: 15px; }
+  .control-panel { padding-top: 7px; }
+  .control-panel > * { margin-bottom: 6px; }
+  .score-card { min-height: 80px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
