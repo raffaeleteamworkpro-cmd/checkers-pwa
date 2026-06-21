@@ -1,0 +1,485 @@
+const SIZE = 8;
+const RED = 'red';
+const CREAM = 'cream';
+
+const boardEl = document.getElementById('board');
+const turnBanner = document.getElementById('turnBanner');
+const turnText = document.getElementById('turnText');
+const turnHint = document.getElementById('turnHint');
+const redPlayer = document.getElementById('redPlayer');
+const creamPlayer = document.getElementById('creamPlayer');
+const redCount = document.getElementById('redCount');
+const creamCount = document.getElementById('creamCount');
+const redLabel = document.getElementById('redLabel');
+const creamLabel = document.getElementById('creamLabel');
+const difficultyField = document.getElementById('difficultyField');
+const difficultySelect = document.getElementById('difficultySelect');
+const undoButton = document.getElementById('undoButton');
+const hintButton = document.getElementById('hintButton');
+const newGameButton = document.getElementById('newGameButton');
+const moveCounter = document.getElementById('moveCounter');
+const gameOver = document.getElementById('gameOver');
+const playAgainButton = document.getElementById('playAgainButton');
+const resultTitle = document.getElementById('resultTitle');
+const resultCopy = document.getElementById('resultCopy');
+const soundButton = document.getElementById('soundButton');
+const toastEl = document.getElementById('toast');
+
+let state;
+let selected = null;
+let candidates = [];
+let turnSnapshot = null;
+let history = [];
+let aiThinking = false;
+let lastMove = [];
+let hintSquare = null;
+let toastTimer;
+
+function initialBoard() {
+  return Array.from({ length: SIZE }, (_, row) =>
+    Array.from({ length: SIZE }, (_, col) => {
+      if ((row + col) % 2 === 0) return null;
+      if (row < 3) return { color: CREAM, king: false };
+      if (row > 4) return { color: RED, king: false };
+      return null;
+    })
+  );
+}
+
+function newState() {
+  return {
+    board: initialBoard(),
+    turn: RED,
+    mode: state?.mode || 'ai',
+    difficulty: difficultySelect.value,
+    moveNumber: 1,
+    sound: state?.sound ?? true,
+    winner: null,
+  };
+}
+
+function cloneBoard(board) {
+  return board.map(row => row.map(piece => piece ? { ...piece } : null));
+}
+
+function cloneState(value = state) {
+  return { ...value, board: cloneBoard(value.board) };
+}
+
+function key(pos) { return `${pos.r},${pos.c}`; }
+function inside(r, c) { return r >= 0 && r < SIZE && c >= 0 && c < SIZE; }
+function opponent(color) { return color === RED ? CREAM : RED; }
+function samePos(a, b) { return a && b && a.r === b.r && a.c === b.c; }
+
+function directions(piece) {
+  if (piece.king) return [[-1, -1], [-1, 1], [1, -1], [1, 1]];
+  const forward = piece.color === RED ? -1 : 1;
+  return [[forward, -1], [forward, 1]];
+}
+
+function captureSequences(board, from, piece) {
+  const results = [];
+
+  function search(currentBoard, position, steps) {
+    let extended = false;
+    for (const [dr, dc] of directions(piece)) {
+      const middle = { r: position.r + dr, c: position.c + dc };
+      const landing = { r: position.r + dr * 2, c: position.c + dc * 2 };
+      if (!inside(landing.r, landing.c)) continue;
+      const jumped = currentBoard[middle.r][middle.c];
+      if (!jumped || jumped.color === piece.color || currentBoard[landing.r][landing.c]) continue;
+      // Nella dama italiana una pedina semplice non può catturare una dama.
+      if (!piece.king && jumped.king) continue;
+
+      extended = true;
+      const nextBoard = cloneBoard(currentBoard);
+      nextBoard[position.r][position.c] = null;
+      nextBoard[middle.r][middle.c] = null;
+      nextBoard[landing.r][landing.c] = { ...piece };
+      search(nextBoard, landing, [...steps, { to: landing, captured: middle, capturedKing: jumped.king }]);
+    }
+    if (!extended && steps.length) results.push({ from, steps });
+  }
+
+  search(board, from, []);
+  return results;
+}
+
+function getLegalMoves(board, color) {
+  const captures = [];
+  const simple = [];
+
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const piece = board[r][c];
+      if (!piece || piece.color !== color) continue;
+      const from = { r, c };
+      captures.push(...captureSequences(board, from, piece));
+      for (const [dr, dc] of directions(piece)) {
+        const to = { r: r + dr, c: c + dc };
+        if (inside(to.r, to.c) && !board[to.r][to.c]) simple.push({ from, steps: [{ to, captured: null, capturedKing: false }] });
+      }
+    }
+  }
+
+  if (!captures.length) return simple;
+  const maxCaptures = Math.max(...captures.map(move => move.steps.length));
+  let best = captures.filter(move => move.steps.length === maxCaptures);
+  const hasKingCapture = best.some(move => board[move.from.r][move.from.c]?.king);
+  if (hasKingCapture) best = best.filter(move => board[move.from.r][move.from.c]?.king);
+  const maxKings = Math.max(...best.map(move => move.steps.filter(step => step.capturedKing).length));
+  best = best.filter(move => move.steps.filter(step => step.capturedKing).length === maxKings);
+  // A ulteriore parità, ha precedenza la sequenza che incontra prima una dama.
+  const firstKing = move => {
+    const index = move.steps.findIndex(step => step.capturedKing);
+    return index === -1 ? Infinity : index;
+  };
+  const earliestKing = Math.min(...best.map(firstKing));
+  return best.filter(move => firstKing(move) === earliestKing);
+}
+
+function applyCompleteMove(board, move, color) {
+  const next = cloneBoard(board);
+  let piece = next[move.from.r][move.from.c];
+  let current = move.from;
+  for (const step of move.steps) {
+    next[current.r][current.c] = null;
+    if (step.captured) next[step.captured.r][step.captured.c] = null;
+    next[step.to.r][step.to.c] = piece;
+    current = step.to;
+  }
+  if (!piece.king && ((color === RED && current.r === 0) || (color === CREAM && current.r === 7))) piece.king = true;
+  return next;
+}
+
+function finishTurn(finalPosition, movedPiece) {
+  if (!movedPiece.king && ((movedPiece.color === RED && finalPosition.r === 0) || (movedPiece.color === CREAM && finalPosition.r === 7))) {
+    movedPiece.king = true;
+    sound('king');
+    showToast('Promozione! È una dama.');
+  }
+  if (turnSnapshot) history.push(turnSnapshot);
+  state.turn = opponent(state.turn);
+  if (state.turn === RED) state.moveNumber++;
+  selected = null;
+  candidates = [];
+  turnSnapshot = null;
+  hintSquare = null;
+  saveGame();
+  checkGameEnd();
+  render();
+  if (!state.winner && state.mode === 'ai' && state.turn === CREAM) scheduleAI();
+}
+
+function selectSquare(r, c) {
+  if (state.winner || aiThinking) return;
+  if (state.mode === 'ai' && state.turn === CREAM) return;
+  const pos = { r, c };
+  const piece = state.board[r][c];
+
+  if (selected) {
+    const matching = candidates.filter(move => samePos(move.steps[0].to, pos));
+    if (matching.length) {
+      if (!turnSnapshot) turnSnapshot = cloneState();
+      const step = matching[0].steps[0];
+      const movingPiece = state.board[selected.r][selected.c];
+      state.board[selected.r][selected.c] = null;
+      if (step.captured) state.board[step.captured.r][step.captured.c] = null;
+      state.board[pos.r][pos.c] = movingPiece;
+      lastMove = [selected, pos];
+      sound(step.captured ? 'capture' : 'move');
+
+      const remaining = matching.filter(move => move.steps.length > 1).map(move => ({ from: pos, steps: move.steps.slice(1) }));
+      if (remaining.length) {
+        selected = pos;
+        candidates = remaining;
+        turnHint.textContent = 'CONTINUA LA PRESA';
+        render();
+      } else {
+        finishTurn(pos, movingPiece);
+      }
+      return;
+    }
+  }
+
+  if (piece?.color === state.turn && !turnSnapshot) {
+    const legal = getLegalMoves(state.board, state.turn);
+    const forPiece = legal.filter(move => samePos(move.from, pos));
+    if (forPiece.length) {
+      selected = pos;
+      candidates = forPiece;
+      hintSquare = null;
+      sound('select');
+      render();
+    } else {
+      showToast(legal.some(move => move.steps[0].captured) ? 'La presa è obbligatoria.' : 'Questa pedina non può muoversi.');
+    }
+  }
+}
+
+function checkGameEnd() {
+  const legal = getLegalMoves(state.board, state.turn);
+  const pieceCount = state.board.flat().filter(piece => piece?.color === state.turn).length;
+  if (!pieceCount || !legal.length) {
+    state.winner = opponent(state.turn);
+    saveGame();
+    setTimeout(showGameOver, 250);
+  }
+}
+
+function showGameOver() {
+  const humanWon = state.winner === RED;
+  const local = state.mode === 'local';
+  resultTitle.textContent = local ? `${state.winner === RED ? 'Rosso' : 'Avorio'} vince!` : humanWon ? 'Hai vinto!' : 'Vince il computer';
+  resultCopy.textContent = humanWon || local ? 'La corona premia chi vede più lontano.' : 'Questa volta ha calcolato una diagonale in più.';
+  gameOver.hidden = false;
+  sound(humanWon ? 'win' : 'lose');
+}
+
+function evaluate(board) {
+  let score = 0;
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const p = board[r][c];
+      if (!p) continue;
+      const value = p.king ? 5.2 : 3 + (p.color === CREAM ? r : 7 - r) * .08;
+      const center = r > 1 && r < 6 && c > 1 && c < 6 ? .15 : 0;
+      score += (p.color === CREAM ? 1 : -1) * (value + center);
+    }
+  }
+  return score;
+}
+
+function minimax(board, color, depth, alpha, beta) {
+  const moves = getLegalMoves(board, color);
+  if (!depth || !moves.length) return evaluate(board) + (!moves.length ? (color === CREAM ? -100 : 100) : 0);
+  if (color === CREAM) {
+    let best = -Infinity;
+    for (const move of moves) {
+      best = Math.max(best, minimax(applyCompleteMove(board, move, color), RED, depth - 1, alpha, beta));
+      alpha = Math.max(alpha, best);
+      if (beta <= alpha) break;
+    }
+    return best;
+  }
+  let best = Infinity;
+  for (const move of moves) {
+    best = Math.min(best, minimax(applyCompleteMove(board, move, color), CREAM, depth - 1, alpha, beta));
+    beta = Math.min(beta, best);
+    if (beta <= alpha) break;
+  }
+  return best;
+}
+
+function chooseAIMove() {
+  const moves = getLegalMoves(state.board, CREAM);
+  if (!moves.length) return null;
+  if (state.difficulty === 'easy') return moves[Math.floor(Math.random() * moves.length)];
+  const depth = state.difficulty === 'hard' ? 5 : 2;
+  const scored = moves.map(move => ({ move, score: minimax(applyCompleteMove(state.board, move, CREAM), RED, depth - 1, -Infinity, Infinity) + Math.random() * .03 }));
+  scored.sort((a, b) => b.score - a.score);
+  return scored[0].move;
+}
+
+function scheduleAI() {
+  aiThinking = true;
+  render();
+  setTimeout(() => {
+    const move = chooseAIMove();
+    if (!move) {
+      aiThinking = false;
+      checkGameEnd();
+      render();
+      return;
+    }
+    const before = cloneState();
+    const piece = state.board[move.from.r][move.from.c];
+    state.board = applyCompleteMove(state.board, move, CREAM);
+    const finalPos = move.steps.at(-1).to;
+    lastMove = [move.from, finalPos];
+    history.push(before);
+    sound(move.steps[0].captured ? 'capture' : 'move');
+    if (!piece.king && finalPos.r === 7) sound('king');
+    state.turn = RED;
+    state.moveNumber++;
+    aiThinking = false;
+    saveGame();
+    checkGameEnd();
+    render();
+  }, 520);
+}
+
+function undo() {
+  if (!history.length || aiThinking) return;
+  let previous = history.pop();
+  if (state.mode === 'ai' && previous.turn === CREAM && history.length) previous = history.pop();
+  const preservedMode = state.mode;
+  const preservedDifficulty = state.difficulty;
+  state = previous;
+  state.mode = preservedMode;
+  state.difficulty = preservedDifficulty;
+  state.winner = null;
+  selected = null;
+  candidates = [];
+  turnSnapshot = null;
+  lastMove = [];
+  gameOver.hidden = true;
+  saveGame();
+  render();
+}
+
+function suggestMove() {
+  if (aiThinking || state.winner || (state.mode === 'ai' && state.turn === CREAM)) return;
+  const moves = getLegalMoves(state.board, state.turn);
+  if (!moves.length) return;
+  const best = moves.map(move => ({ move, score: minimax(applyCompleteMove(state.board, move, state.turn), opponent(state.turn), 2, -Infinity, Infinity) }))
+    .sort((a, b) => state.turn === CREAM ? b.score - a.score : a.score - b.score)[0].move;
+  hintSquare = best.from;
+  render();
+  showToast(`Prova da ${String.fromCharCode(65 + best.from.c)}${8 - best.from.r}.`);
+  setTimeout(() => { hintSquare = null; render(); }, 2100);
+}
+
+function render() {
+  boardEl.innerHTML = '';
+  const targets = new Map();
+  for (const move of candidates) targets.set(key(move.steps[0].to), Boolean(move.steps[0].captured));
+  const legal = !turnSnapshot ? getLegalMoves(state.board, state.turn) : [];
+  const movable = new Set(legal.map(move => key(move.from)));
+
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const square = document.createElement('button');
+      square.type = 'button';
+      square.className = `square ${(r + c) % 2 ? 'dark' : 'light'}`;
+      square.setAttribute('role', 'gridcell');
+      const pos = { r, c };
+      const piece = state.board[r][c];
+      const coordinate = `${String.fromCharCode(65 + c)}${8 - r}`;
+      square.setAttribute('aria-label', piece ? `${coordinate}, pedina ${piece.color === RED ? 'rossa' : 'avorio'}${piece.king ? ', dama' : ''}` : `${coordinate}, vuota`);
+      if (samePos(selected, pos)) square.classList.add('selected');
+      if (lastMove.some(p => samePos(p, pos))) square.classList.add('last-move');
+      if (samePos(hintSquare, pos)) square.classList.add('hinted');
+      if (movable.has(key(pos)) || targets.has(key(pos))) square.classList.add('playable');
+      if (piece) {
+        const pieceEl = document.createElement('span');
+        pieceEl.className = `piece ${piece.color}${piece.king ? ' king' : ''}`;
+        square.appendChild(pieceEl);
+      }
+      if (targets.has(key(pos))) {
+        const target = document.createElement('span');
+        target.className = `target${targets.get(key(pos)) ? ' capture' : ''}`;
+        target.setAttribute('aria-hidden', 'true');
+        square.appendChild(target);
+      }
+      square.addEventListener('click', () => selectSquare(r, c));
+      boardEl.appendChild(square);
+    }
+  }
+
+  const reds = state.board.flat().filter(piece => piece?.color === RED).length;
+  const creams = state.board.flat().filter(piece => piece?.color === CREAM).length;
+  redCount.textContent = reds;
+  creamCount.textContent = creams;
+  moveCounter.textContent = `MOSSA ${state.moveNumber}`;
+  redPlayer.classList.toggle('active', state.turn === RED);
+  creamPlayer.classList.toggle('active', state.turn === CREAM);
+  turnBanner.classList.toggle('cream', state.turn === CREAM);
+  turnText.textContent = aiThinking ? 'IL COMPUTER PENSA' : state.turn === RED ? (state.mode === 'ai' ? 'TOCCA A TE' : 'TURNO DEL ROSSO') : 'TURNO DELL’AVORIO';
+  if (!selected) turnHint.textContent = aiThinking ? 'STA VALUTANDO LE DIAGONALI' : `SELEZIONA UNA PEDINA ${state.turn === RED ? 'ROSSA' : 'AVORIO'}`;
+  else turnHint.textContent = candidates[0]?.steps[0].captured ? 'SCEGLI DOVE CATTURARE' : 'SCEGLI LA CASELLA';
+  undoButton.disabled = !history.length || aiThinking;
+  hintButton.disabled = aiThinking || Boolean(state.winner);
+}
+
+function setMode(mode) {
+  state.mode = mode;
+  document.querySelectorAll('.segment').forEach(button => button.classList.toggle('active', button.dataset.mode === mode));
+  difficultyField.hidden = mode === 'local';
+  redLabel.textContent = mode === 'ai' ? 'TU' : 'GIOCATORE 1';
+  creamLabel.textContent = mode === 'ai' ? 'COMPUTER' : 'GIOCATORE 2';
+  resetGame();
+}
+
+function resetGame() {
+  const mode = state?.mode || 'ai';
+  const soundEnabled = state?.sound ?? true;
+  state = newState();
+  state.mode = mode;
+  state.sound = soundEnabled;
+  history = [];
+  selected = null;
+  candidates = [];
+  turnSnapshot = null;
+  lastMove = [];
+  aiThinking = false;
+  gameOver.hidden = true;
+  saveGame();
+  render();
+}
+
+function showToast(message) {
+  toastEl.textContent = message;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1800);
+}
+
+function sound(type) {
+  if (!state.sound) return;
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const frequencies = { select: 280, move: 180, capture: 120, king: 520, win: 660, lose: 100 };
+    osc.frequency.value = frequencies[type] || 200;
+    osc.type = type === 'capture' ? 'square' : 'sine';
+    gain.gain.setValueAtTime(.055, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + (type === 'win' ? .45 : .13));
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + (type === 'win' ? .45 : .13));
+  } catch { /* Audio is an enhancement, never a blocker. */ }
+}
+
+function saveGame() {
+  try { localStorage.setItem('dama-game', JSON.stringify(state)); } catch { /* private mode */ }
+}
+
+function loadGame() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('dama-game'));
+    if (saved?.board?.length === SIZE && saved.mode) return saved;
+  } catch { /* start fresh */ }
+  return null;
+}
+
+document.querySelectorAll('.segment').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
+difficultySelect.addEventListener('change', () => { state.difficulty = difficultySelect.value; saveGame(); });
+newGameButton.addEventListener('click', resetGame);
+playAgainButton.addEventListener('click', resetGame);
+undoButton.addEventListener('click', undo);
+hintButton.addEventListener('click', suggestMove);
+soundButton.addEventListener('click', () => {
+  state.sound = !state.sound;
+  soundButton.classList.toggle('muted', !state.sound);
+  soundButton.setAttribute('aria-label', state.sound ? 'Disattiva suoni' : 'Attiva suoni');
+  saveGame();
+  if (state.sound) sound('select');
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && !gameOver.hidden) gameOver.hidden = true;
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); undo(); }
+});
+
+state = loadGame() || { board: initialBoard(), turn: RED, mode: 'ai', difficulty: 'medium', moveNumber: 1, sound: true, winner: null };
+difficultySelect.value = state.difficulty;
+document.querySelectorAll('.segment').forEach(button => button.classList.toggle('active', button.dataset.mode === state.mode));
+difficultyField.hidden = state.mode === 'local';
+redLabel.textContent = state.mode === 'ai' ? 'TU' : 'GIOCATORE 1';
+creamLabel.textContent = state.mode === 'ai' ? 'COMPUTER' : 'GIOCATORE 2';
+soundButton.classList.toggle('muted', !state.sound);
+render();
+if (state.winner) showGameOver();
+else if (state.mode === 'ai' && state.turn === CREAM) scheduleAI();
