@@ -145,9 +145,13 @@ h1 em { color: var(--red); font-weight: 600; }
 .piece.king::before { content: '♛'; position: absolute; inset: 0; display: grid; place-items: center; color: var(--gold); font-size: clamp(15px, 2.5vw, 28px); text-shadow: 0 1px #6c4b16; z-index: 1; }
 .move-ghost { position: fixed !important; display: block; z-index: 120; margin: 0; pointer-events: none; transition: none !important; will-change: transform; }
 .move-ghost.flipped-ghost.king::before { transform: rotate(180deg); }
+.drag-ghost { position: fixed !important; display: block; z-index: 130; margin: 0; pointer-events: none; transition: none !important; will-change: transform; filter: drop-shadow(0 12px 14px rgba(0,0,0,.3)); }
+.drag-ghost.flipped-ghost.king::before { transform: rotate(180deg); }
+.board.dragging .piece { cursor: grabbing; }
 .board[data-animating="true"] .target { opacity: .35; animation-play-state: paused; }
 .square.playable:hover .piece { transform: translateY(-3px); box-shadow: 0 10px 12px rgba(0,0,0,.28), inset 0 3px 2px rgba(255,255,255,.23), inset 0 -4px 4px rgba(0,0,0,.18); }
 .square.selected .piece { transform: translateY(-4px) scale(1.06); box-shadow: 0 0 0 4px var(--gold), 0 12px 15px rgba(0,0,0,.3); }
+.square.drag-over::before { content: ''; position: absolute; inset: 8px; z-index: 1; border: 3px solid var(--gold); box-shadow: inset 0 0 0 999px rgba(216,168,76,.13); pointer-events: none; }
 .target { position: absolute; z-index: 3; width: 24%; height: 24%; border: 3px solid var(--gold); border-radius: 50%; background: rgba(216,168,76,.25); animation: pulse 1.5s infinite; }
 .target.capture { width: 46%; height: 46%; border-style: dashed; background: rgba(189,75,63,.18); }
 .hinted .piece { box-shadow: 0 0 0 5px var(--gold), 0 8px 15px rgba(0,0,0,.3); animation: hint 1s ease-in-out 2; }
