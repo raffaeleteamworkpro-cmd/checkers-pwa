@@ -38,6 +38,9 @@ let lastMove = [];
 let hintSquare = null;
 let toastTimer;
 let introDismissed = false;
+let pendingDrag = null;
+let activeDrag = null;
+let suppressClickUntil = 0;
 
 function dismissIntro() {
   if (introDismissed) return;
@@ -171,6 +174,44 @@ function getSquareElement(position) {
   return boardEl.querySelector(`[data-row="${position.r}"][data-col="${position.c}"]`);
 }
 
+function getPositionFromSquare(square) {
+  if (!square) return null;
+  return { r: Number(square.dataset.row), c: Number(square.dataset.col) };
+}
+
+function getSquareFromPoint(x, y) {
+  const element = document.elementFromPoint(x, y);
+  const square = element?.closest?.('.square');
+  return square && boardEl.contains(square) ? square : null;
+}
+
+function currentLegalMovesForPiece(pos) {
+  if (turnSnapshot) return samePos(selected, pos) ? candidates : [];
+  return getLegalMoves(state.board, state.turn).filter(move => samePos(move.from, pos));
+}
+
+function selectPieceAt(pos, { quiet = false } = {}) {
+  if (state.winner || aiThinking || moveAnimating || isAITurn()) return false;
+  const piece = state.board[pos.r]?.[pos.c];
+  if (piece?.color !== state.turn) return false;
+
+  const forPiece = currentLegalMovesForPiece(pos);
+  if (!forPiece.length) {
+    if (!quiet && !turnSnapshot) {
+      const legal = getLegalMoves(state.board, state.turn);
+      showToast(legal.some(move => move.steps[0].captured) ? 'La presa è obbligatoria.' : 'Questa pedina non può muoversi.');
+    }
+    return false;
+  }
+
+  selected = pos;
+  candidates = forPiece;
+  hintSquare = null;
+  if (!quiet) sound('select');
+  render();
+  return true;
+}
+
 async function animateStep(from, to, captured = null) {
   const sourceSquare = getSquareElement(from);
   const targetSquare = getSquareElement(to);
@@ -240,6 +281,38 @@ function finishTurn(finalPosition, movedPiece) {
   if (!state.winner && isAITurn()) scheduleAI();
 }
 
+async function executeSelectedMove(pos, { animate = true } = {}) {
+  if (!selected) return false;
+  const matching = candidates.filter(move => samePos(move.steps[0].to, pos));
+  if (!matching.length) return false;
+
+  if (!turnSnapshot) turnSnapshot = cloneState();
+  const step = matching[0].steps[0];
+  const from = selected;
+  const movingPiece = state.board[from.r][from.c];
+  if (!movingPiece) return false;
+
+  moveAnimating = true;
+  sound(step.captured ? 'capture' : 'move');
+  if (animate) await animateStep(from, pos, step.captured);
+  state.board[from.r][from.c] = null;
+  if (step.captured) state.board[step.captured.r][step.captured.c] = null;
+  state.board[pos.r][pos.c] = movingPiece;
+  lastMove = [from, pos];
+  moveAnimating = false;
+
+  const remaining = matching.filter(move => move.steps.length > 1).map(move => ({ from: pos, steps: move.steps.slice(1) }));
+  if (remaining.length) {
+    selected = pos;
+    candidates = remaining;
+    turnHint.textContent = 'CONTINUA LA PRESA';
+    render();
+  } else {
+    finishTurn(pos, movingPiece);
+  }
+  return true;
+}
+
 async function selectSquare(r, c) {
   if (state.winner || aiThinking || moveAnimating) return;
   if (isAITurn()) return;
@@ -288,6 +361,138 @@ async function selectSquare(r, c) {
       showToast(legal.some(move => move.steps[0].captured) ? 'La presa è obbligatoria.' : 'Questa pedina non può muoversi.');
     }
   }
+}
+
+function clearDragHover() {
+  boardEl.querySelectorAll('.drag-over').forEach(square => square.classList.remove('drag-over'));
+}
+
+function isCandidateTarget(pos) {
+  return Boolean(pos && candidates.some(move => samePos(move.steps[0].to, pos)));
+}
+
+function startDragGhost(event) {
+  const sourceSquare = getSquareElement(pendingDrag.from);
+  const sourcePiece = sourceSquare?.querySelector('.piece');
+  if (!sourcePiece) return false;
+
+  const rect = sourcePiece.getBoundingClientRect();
+  const ghost = sourcePiece.cloneNode(true);
+  ghost.classList.add('drag-ghost');
+  if (boardEl.classList.contains('flipped')) ghost.classList.add('flipped-ghost');
+  Object.assign(ghost.style, {
+    left: `${rect.left}px`,
+    top: `${rect.top}px`,
+    width: `${rect.width}px`,
+    height: `${rect.height}px`,
+  });
+  document.body.appendChild(ghost);
+  sourcePiece.style.opacity = '0';
+  boardEl.classList.add('dragging');
+  activeDrag = {
+    ghost,
+    sourcePiece,
+    startX: pendingDrag.startX,
+    startY: pendingDrag.startY,
+  };
+  updateDragGhost(event);
+  return true;
+}
+
+function updateDragGhost(event) {
+  if (!activeDrag) return;
+  const dx = event.clientX - activeDrag.startX;
+  const dy = event.clientY - activeDrag.startY;
+  activeDrag.ghost.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(1.07)`;
+
+  clearDragHover();
+  const square = getSquareFromPoint(event.clientX, event.clientY);
+  const pos = getPositionFromSquare(square);
+  if (isCandidateTarget(pos)) square.classList.add('drag-over');
+}
+
+async function returnDraggedPiece() {
+  if (!activeDrag) return;
+  const { ghost, sourcePiece } = activeDrag;
+  const currentTransform = ghost.style.transform || 'translate3d(0, 0, 0) scale(1)';
+  await ghost.animate([
+    { transform: currentTransform },
+    { transform: 'translate3d(0, 0, 0) scale(1)' },
+  ], { duration: 170, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' }).finished.catch(() => undefined);
+  sourcePiece.style.opacity = '';
+  ghost.remove();
+}
+
+function cleanupDrag() {
+  clearDragHover();
+  boardEl.classList.remove('dragging');
+  window.removeEventListener('pointermove', onDragMove);
+  window.removeEventListener('pointerup', onDragEnd);
+  window.removeEventListener('pointercancel', onDragCancel);
+  pendingDrag = null;
+  activeDrag = null;
+}
+
+function onDragMove(event) {
+  if (!pendingDrag || event.pointerId !== pendingDrag.pointerId) return;
+  const distance = Math.hypot(event.clientX - pendingDrag.startX, event.clientY - pendingDrag.startY);
+  if (!activeDrag && distance < 6) return;
+  if (!activeDrag && !startDragGhost(event)) return;
+  event.preventDefault();
+  updateDragGhost(event);
+}
+
+async function onDragEnd(event) {
+  if (!pendingDrag || event.pointerId !== pendingDrag.pointerId) return;
+  suppressClickUntil = Date.now() + 450;
+  if (!activeDrag) {
+    cleanupDrag();
+    return;
+  }
+
+  event.preventDefault();
+  const square = getSquareFromPoint(event.clientX, event.clientY);
+  const pos = getPositionFromSquare(square);
+  const validDrop = isCandidateTarget(pos);
+  const ghost = activeDrag.ghost;
+
+  if (validDrop) {
+    const committed = await executeSelectedMove(pos, { animate: false });
+    if (committed) ghost.remove();
+    else await returnDraggedPiece();
+  } else {
+    showToast('Mossa non valida.');
+    await returnDraggedPiece();
+  }
+  cleanupDrag();
+}
+
+async function onDragCancel(event) {
+  if (!pendingDrag || event.pointerId !== pendingDrag.pointerId) return;
+  await returnDraggedPiece();
+  cleanupDrag();
+}
+
+function onBoardPointerDown(event) {
+  if (event.button !== undefined && event.button !== 0) return;
+  if (state.winner || aiThinking || moveAnimating || isAITurn()) return;
+  const pieceEl = event.target.closest?.('.piece');
+  const square = pieceEl?.closest?.('.square');
+  if (!pieceEl || !square || !boardEl.contains(square)) return;
+
+  const pos = getPositionFromSquare(square);
+  if (!selectPieceAt(pos, { quiet: true })) return;
+
+  pendingDrag = {
+    pointerId: event.pointerId,
+    from: pos,
+    startX: event.clientX,
+    startY: event.clientY,
+  };
+  suppressClickUntil = Date.now() + 450;
+  window.addEventListener('pointermove', onDragMove, { passive: false });
+  window.addEventListener('pointerup', onDragEnd, { passive: false });
+  window.addEventListener('pointercancel', onDragCancel, { passive: false });
 }
 
 function checkGameEnd() {
@@ -473,7 +678,13 @@ function render() {
         target.setAttribute('aria-hidden', 'true');
         square.appendChild(target);
       }
-      square.addEventListener('click', () => selectSquare(r, c));
+      square.addEventListener('click', event => {
+        if (Date.now() < suppressClickUntil) {
+          event.preventDefault();
+          return;
+        }
+        selectSquare(r, c);
+      });
       boardEl.appendChild(square);
     }
   }
@@ -579,6 +790,7 @@ function loadGame() {
 document.querySelectorAll('.segment').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
 introScreen.addEventListener('click', dismissIntro);
 setTimeout(dismissIntro, 2400);
+boardEl.addEventListener('pointerdown', onBoardPointerDown);
 redPlayer.addEventListener('click', () => setPlayerColor(RED));
 creamPlayer.addEventListener('click', () => setPlayerColor(CREAM));
 difficultySelect.addEventListener('change', () => { state.difficulty = difficultySelect.value; saveGame(); });
