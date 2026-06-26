@@ -100,6 +100,8 @@ h1 em { color: var(--red); font-weight: 600; }
 .field[hidden] { display: none; }
 .field > span { display: block; font-size: 9px; font-weight: 700; letter-spacing: .16em; margin-bottom: 7px; opacity: .55; }
 .field select { width: 100%; appearance: none; border: 1px solid var(--line); padding: 12px 35px 12px 13px; background: var(--paper) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='m1 1 4 4 4-4' fill='none' stroke='%23152421'/%3E%3C/svg%3E") no-repeat calc(100% - 14px) center; font-size: 10px; font-weight: 700; letter-spacing: .1em; }
+.field select:disabled { opacity: .58; cursor: wait; }
+.field-help { display: block; min-height: 32px; margin-top: 8px; color: #68716e; font-size: 11px; line-height: 1.45; }
 .score-card { border: 1px solid var(--line); background: rgba(255,255,255,.2); padding: 15px; }
 .player-row { width: 100%; display: grid; grid-template-columns: 35px 1fr auto; align-items: center; gap: 10px; padding: 8px; border: 1px solid transparent; text-align: left; background: transparent; opacity: .5; transition: opacity .2s, border-color .2s, background .2s; }
 .player-row.active { opacity: 1; }
@@ -188,6 +190,10 @@ footer span { color: var(--red); }
 .result-crown { font-size: 48px; color: var(--gold); }
 .game-over h2 { margin: 6px 0 8px; font: 600 38px 'Playfair Display', Georgia, serif; }
 .game-over-card > p:not(.eyebrow) { color: #68716e; font-size: 13px; margin-bottom: 25px; }
+.share-card { margin: 0 0 22px; padding: 16px; border: 1px solid var(--line); background: rgba(255,255,255,.24); text-align: left; }
+.share-card p { margin: 0 0 9px; color: var(--ink); font-size: 12px; font-weight: 700; line-height: 1.45; }
+.share-card a { display: block; color: var(--red-dark); font-size: 11px; font-weight: 700; line-height: 1.45; overflow-wrap: anywhere; }
+.share-card small { display: block; margin-top: 10px; color: #68716e; font-size: 11px; line-height: 1.45; }
 .toast { position: fixed; z-index: 30; left: 50%; bottom: 25px; transform: translate(-50%, 20px); padding: 12px 18px; color: white; background: var(--ink); font-size: 10px; font-weight: 700; letter-spacing: .08em; opacity: 0; pointer-events: none; transition: .2s; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
@@ -196,8 +202,36 @@ footer span { color: var(--red); }
 @keyframes intro-rise { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes intro-pulse { 50% { opacity: .45; } }
 
+@media (min-width: 761px) {
+  html, body { height: 100%; overflow: hidden; }
+  .app-shell { height: 100vh; min-height: 0; display: grid; grid-template-rows: 72px minmax(0, 1fr); overflow: hidden; }
+  .topbar { height: 72px; }
+  main { height: 100%; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+  .hero { min-height: 0; padding: 12px 2vw; align-items: flex-end; }
+  .eyebrow { margin-bottom: 6px; }
+  h1 { font-size: clamp(30px, 3vw, 42px); line-height: .96; }
+  .hero-copy { margin-bottom: 3px; font-size: 13px; line-height: 1.45; }
+  .game-layout {
+    min-height: 0;
+    grid-template-columns: minmax(220px, 260px) minmax(360px, min(46vw, calc(100vh - 315px))) minmax(220px, 260px);
+    align-items: start;
+  }
+  .panel { padding-top: 14px; }
+  .panel-heading { padding-bottom: 16px; }
+  .segmented { margin: 16px 0; }
+  .field { margin-bottom: 14px; }
+  .score-card { padding: 12px; }
+  .player-row { padding: 6px 8px; }
+  .score-divider { margin: 8px 0; }
+  .control-panel .primary-button { margin-top: 12px; }
+  .board-frame { padding: clamp(16px, 1.8vw, 22px); }
+  .coordinates.top, .coordinates.bottom { left: clamp(16px, 1.8vw, 22px); right: clamp(16px, 1.8vw, 22px); }
+  .coordinates.side { top: clamp(16px, 1.8vw, 22px); bottom: clamp(16px, 1.8vw, 22px); }
+  footer { display: none; }
+}
+
 @media (max-width: 1050px) {
-  .game-layout { grid-template-columns: minmax(190px, 240px) minmax(420px, 600px); }
+  .game-layout { grid-template-columns: minmax(190px, 240px) minmax(340px, min(56vw, calc(100vh - 315px))); }
   .rules-panel { display: none; }
 }
 
@@ -216,6 +250,7 @@ footer span { color: var(--red); }
   .field { margin-bottom: 8px; }
   .field > span { margin-bottom: 4px; }
   .field select { padding-top: 9px; padding-bottom: 9px; }
+  .field-help { min-height: 0; margin-top: 5px; font-size: 10px; line-height: 1.3; }
   .score-card { flex: 1 1 auto; min-height: 92px; max-height: 150px; display: flex; flex-direction: column; justify-content: center; padding: 8px 12px; }
   .player-row { padding: 4px 8px; }
   .score-divider { margin: 5px 0; }
