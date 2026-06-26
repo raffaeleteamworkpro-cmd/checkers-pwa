@@ -64,11 +64,12 @@
 
             <label class="field" id="difficultyField">
               <span>DIFFICOLTÀ</span>
-              <select id="difficultySelect">
+              <select id="difficultySelect" aria-describedby="difficultyDescription">
                 <option value="easy">Rilassata</option>
                 <option value="medium" selected>Calcolatrice</option>
                 <option value="hard">Spietata</option>
               </select>
+              <small id="difficultyDescription" class="field-help"></small>
             </label>
 
             <div class="score-card">
@@ -151,6 +152,11 @@
         <div class="result-crown">♛</div>
         <h2 id="resultTitle">Hai vinto!</h2>
         <p id="resultCopy">Una diagonale alla volta.</p>
+        <div class="share-card" aria-label="Condividi la Dama">
+          <p>Condividi la Dama con i tuoi amici inviando il seguente link:</p>
+          <a href="https://raffaeleteamworkpro-cmd.github.io/checkers-pwa/">https://raffaeleteamworkpro-cmd.github.io/checkers-pwa/</a>
+          <small>Su iPhone possono aprirlo con Safari e, se vogliono tenerlo come app, fare: Condividi &rarr; Aggiungi alla schermata Home.</small>
+        </div>
         <button class="primary-button" id="playAgainButton" type="button"><span>GIOCA ANCORA</span><span>↗</span></button>
       </div>
     </div>
