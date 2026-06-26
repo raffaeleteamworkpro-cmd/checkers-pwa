@@ -15,6 +15,7 @@ const redLabel = document.getElementById('redLabel');
 const creamLabel = document.getElementById('creamLabel');
 const difficultyField = document.getElementById('difficultyField');
 const difficultySelect = document.getElementById('difficultySelect');
+const difficultyDescription = document.getElementById('difficultyDescription');
 const undoButton = document.getElementById('undoButton');
 const hintButton = document.getElementById('hintButton');
 const newGameButton = document.getElementById('newGameButton');
@@ -42,6 +43,41 @@ let pendingDrag = null;
 let activeDrag = null;
 let suppressClickUntil = 0;
 
+const DIFFICULTIES = {
+  easy: {
+    depth: 1,
+    candidatePool: 5,
+    blunderChance: .38,
+    noise: 2.2,
+    description: 'Gioca veloce e lascia qualche spiraglio: ideale per prendere ritmo.',
+    thinking: 'GIOCA DI ISTINTO',
+  },
+  medium: {
+    depth: 3,
+    candidatePool: 3,
+    blunderChance: .12,
+    noise: .45,
+    description: 'Valuta alcune risposte e punisce gli errori evidenti.',
+    thinking: 'CALCOLA QUALCHE RISPOSTA',
+  },
+  hard: {
+    depth: 5,
+    candidatePool: 1,
+    blunderChance: 0,
+    noise: .03,
+    description: 'Cerca la linea migliore: se sbagli, lo nota prima di te.',
+    thinking: 'STA SETACCIANDO LE DIAGONALI',
+  },
+};
+
+function normalizeDifficulty(value) {
+  return DIFFICULTIES[value] ? value : 'medium';
+}
+
+function difficultySettings() {
+  return DIFFICULTIES[normalizeDifficulty(state?.difficulty)];
+}
+
 function dismissIntro() {
   if (introDismissed) return;
   introDismissed = true;
@@ -66,7 +102,7 @@ function newState() {
     board: initialBoard(),
     turn: RED,
     mode: state?.mode || 'ai',
-    difficulty: difficultySelect.value,
+    difficulty: normalizeDifficulty(difficultySelect.value),
     humanColor: state?.humanColor || RED,
     moveNumber: 1,
     sound: state?.sound ?? true,
@@ -553,11 +589,26 @@ function chooseAIMove() {
   const computer = aiColor();
   const moves = getLegalMoves(state.board, computer);
   if (!moves.length) return null;
-  if (state.difficulty === 'easy') return moves[Math.floor(Math.random() * moves.length)];
-  const depth = state.difficulty === 'hard' ? 5 : 2;
-  const scored = moves.map(move => ({ move, score: minimax(applyCompleteMove(state.board, move, computer), opponent(computer), depth - 1, -Infinity, Infinity, computer) + Math.random() * .03 }));
+  const settings = difficultySettings();
+  const scored = moves.map(move => ({
+    move,
+    score: minimax(
+      applyCompleteMove(state.board, move, computer),
+      opponent(computer),
+      settings.depth - 1,
+      -Infinity,
+      Infinity,
+      computer
+    ) + Math.random() * settings.noise,
+  }));
   scored.sort((a, b) => b.score - a.score);
-  return scored[0].move;
+  if (settings.blunderChance && Math.random() < settings.blunderChance) {
+    const start = Math.min(1, scored.length - 1);
+    const pool = scored.slice(start, Math.min(scored.length, settings.candidatePool));
+    return (pool.length ? pool : scored)[Math.floor(Math.random() * (pool.length || scored.length))].move;
+  }
+  const pool = scored.slice(0, Math.min(scored.length, settings.candidatePool));
+  return pool[Math.floor(Math.random() * pool.length)].move;
 }
 
 function scheduleAI() {
@@ -707,11 +758,13 @@ function render() {
   creamLabel.textContent = state.mode === 'ai' ? (state.humanColor === CREAM ? 'TU · SELEZIONATO' : 'COMPUTER · TOCCA PER SCEGLIERE') : 'GIOCATORE 2';
   turnBanner.classList.toggle('cream', state.turn === CREAM);
   turnText.textContent = aiThinking ? 'IL COMPUTER PENSA' : state.mode === 'ai' ? (state.turn === state.humanColor ? 'TOCCA A TE' : 'TURNO DEL COMPUTER') : state.turn === RED ? 'TURNO DEL ROSSO' : 'TURNO DELL’AVORIO';
-  if (!selected) turnHint.textContent = aiThinking ? 'STA VALUTANDO LE DIAGONALI' : `SELEZIONA UNA PEDINA ${state.turn === RED ? 'ROSSA' : 'AVORIO'}`;
+  if (!selected) turnHint.textContent = aiThinking ? difficultySettings().thinking : `SELEZIONA UNA PEDINA ${state.turn === RED ? 'ROSSA' : 'AVORIO'}`;
   else turnHint.textContent = candidates[0]?.steps[0].captured ? 'SCEGLI DOVE CATTURARE' : 'SCEGLI LA CASELLA';
   const onlyOpeningAI = state.mode === 'ai' && history.length === 1 && history[0].turn === aiColor();
   undoButton.disabled = !history.length || aiThinking || moveAnimating || onlyOpeningAI;
   hintButton.disabled = aiThinking || moveAnimating || Boolean(state.winner);
+  difficultySelect.disabled = state.mode !== 'ai' || aiThinking || moveAnimating;
+  difficultyDescription.textContent = state.mode === 'ai' ? difficultySettings().description : '';
 }
 
 function setMode(mode) {
@@ -793,7 +846,13 @@ setTimeout(dismissIntro, 2400);
 boardEl.addEventListener('pointerdown', onBoardPointerDown);
 redPlayer.addEventListener('click', () => setPlayerColor(RED));
 creamPlayer.addEventListener('click', () => setPlayerColor(CREAM));
-difficultySelect.addEventListener('change', () => { state.difficulty = difficultySelect.value; saveGame(); });
+difficultySelect.addEventListener('change', () => {
+  state.difficulty = normalizeDifficulty(difficultySelect.value);
+  difficultySelect.value = state.difficulty;
+  saveGame();
+  render();
+  showToast(`Difficolt\u00e0: ${difficultySelect.selectedOptions[0].textContent}.`);
+});
 newGameButton.addEventListener('click', resetGame);
 playAgainButton.addEventListener('click', resetGame);
 undoButton.addEventListener('click', undo);
@@ -812,6 +871,7 @@ document.addEventListener('keydown', event => {
 
 state = loadGame() || { board: initialBoard(), turn: RED, mode: 'ai', difficulty: 'medium', humanColor: RED, moveNumber: 1, sound: true, winner: null };
 state.humanColor ||= RED;
+state.difficulty = normalizeDifficulty(state.difficulty);
 difficultySelect.value = state.difficulty;
 document.querySelectorAll('.segment').forEach(button => button.classList.toggle('active', button.dataset.mode === state.mode));
 difficultyField.hidden = state.mode === 'local';
